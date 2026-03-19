@@ -1,8 +1,7 @@
 # lab3-IO_performance-IsabellaSanchezMejia
 
 
-![alt text](<Banner para Linkedin programador con fotografia azul y blanco (2).png>)
-
+![alt text](<images/banner 2.png>)
 
 <div>
   <img style="width:100%" src="https://capsule-render.vercel.app/api?type=waving&height=100&section=header&fontSize=70&fontColor=FFFFFF&color=87CEEB" />
