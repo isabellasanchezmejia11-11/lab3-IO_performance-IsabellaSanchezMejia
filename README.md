@@ -35,7 +35,8 @@ En mi equipo, el acceso secuencial demostró ser significativamente más eficien
 
 Este resultado coincide con lo esperado según la teoría, ya que el acceso secuencial permite al sistema operativo  realizar técnicas como la lectura anticipada, lo que reduce el impacto de la latencia. En contraste, el acceso aleatorio implica saltos constantes entre ubicaciones de memoria, lo que incrementa y "dispara" los tiempos de acceso y disminuye el rendimiento.
 
-![alt text](image.png)
+![alt text](images/fig_speedup.png)
+
 <img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif"><br><br>
 
 2.**Efecto del tamaño de bloque:** *¿Qué ocurrió con el throughput del
@@ -102,7 +103,7 @@ Si se necesita procesar un millón de registros para generar un reporte completo
 
 En cambio, realizar esta misma tarea mediante acceso aleatorio implicaría gestionar un millón de ubicaciones distintas en memoria. Aunque se trate de un SSD rápido, esto genera una sobrecarga innecesaria y reduce la eficiencia, ya que el sistema no puede optimizar la lectura.
 
-![alt text](image-1.png)
+![alt text](images/fig_tiempo_empirico.png)
 
 <img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif"><br><br>
 ## Conclusión final
