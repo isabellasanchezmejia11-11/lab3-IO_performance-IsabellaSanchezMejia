@@ -1,0 +1,228 @@
+##Código: Repetir el experimento varias veces y promediar los resultados.
+
+print("\nPROMEDIOS FINALES:\n")
+
+from collections import defaultdict
+
+agrupados = defaultdict(list)
+
+for fila in results:
+    if fila['pattern'] == 'Secuencial':  
+        bs = fila['block_size_bytes']
+        tiempo = fila['elapsed_s']
+        agrupados[bs].append(tiempo)
+
+for bs in sorted(agrupados.keys()):
+    promedio = sum(agrupados[bs]) / len(agrupados[bs])
+    print(f"{format_bytes(bs)} → {promedio:.4f} s")
+
+
+##Código: Comparar lectura y escritura.
+
+import time
+import pandas as pd
+import matplotlib.pyplot as plt
+
+results_rw = []
+TEMP_FILE = DATA_DIR / 'rw_comparison.bin'
+FILE_SIZE_TEST = 256
+
+for b_size in BLOCK_SIZES:
+    print(f"Probando bloque de {format_bytes(b_size)}...")
+    
+   
+    data_to_write = os.urandom(b_size)
+    start_w = time.perf_counter()
+    with open(TEMP_FILE, 'wb', buffering=0) as f:
+        for _ in range(0, FILE_SIZE_TEST * 1024 * 1024, b_size):
+            f.write(data_to_write)
+    end_w = time.perf_counter()
+    
+    w_time = end_w - start_w
+    w_throughput = FILE_SIZE_TEST / w_time
+
+   
+    start_r = time.perf_counter()
+    with open(TEMP_FILE, 'rb', buffering=0) as f:
+        while f.read(b_size):
+            pass
+    end_r = time.perf_counter()
+    
+    r_time = end_r - start_r
+    r_throughput = FILE_SIZE_TEST / r_time
+
+    results_rw.append({
+        'BlockSize_KiB': b_size / 1024,
+        'Write_MiB_s': w_throughput,
+        'Read_MiB_s': r_throughput,
+        'Ratio_R_W': r_throughput / w_throughput
+    })
+
+
+df_rw = pd.DataFrame(results_rw)
+print("\n--- Resumen de Comparación ---")
+print(df_rw)
+
+
+ax = df_rw.plot(x='BlockSize_KiB', y=['Write_MiB_s', 'Read_MiB_s'], kind='bar', figsize=(10, 6))
+ax.set_title('Throughput: Escritura vs Lectura')
+ax.set_ylabel('MiB/s')
+ax.set_xlabel('Tamaño de bloque (KiB)')
+plt.grid(axis='y', alpha=0.3)
+plt.show()
+
+
+
+## Código: Medir sobre SSD local vs disco de red.
+
+
+def benchmark_storage(path: Path, label: str, size_mb: int = 100):
+    file_path = path / 'test_bench.bin'
+    block_size = 64 * 1024 
+
+    
+    data = os.urandom(block_size)
+    start_w = time.perf_counter()
+    with open(file_path, 'wb', buffering=0) as f:
+        for _ in range(0, size_mb * 1024 * 1024, block_size):
+            f.write(data)
+    w_time = time.perf_counter() - start_w
+    
+    
+    start_r = time.perf_counter()
+    with open(file_path, 'rb', buffering=0) as f:
+        while f.read(block_size): pass
+    r_time = time.perf_counter() - start_r
+    
+    return {
+        'Almacenamiento': label,
+        'Escritura_MiB_s': size_mb / w_time,
+        'Lectura_MiB_s': size_mb / r_time
+    }
+
+
+res_ssd = benchmark_storage(SSD_LOCAL, "SSD Local")
+res_net = benchmark_storage(NETWORK_DISK, "Disco de Red")
+
+import pandas as pd
+df_comparison = pd.DataFrame([res_ssd, res_net])
+print(df_comparison)
+
+
+
+
+##Código: Cambiar el tamaño del archivo y observar el efecto en la caché.
+
+import time
+import pandas as pd
+import matplotlib.pyplot as plt
+
+
+FILE_SIZES_MB = [10, 50, 200, 800] 
+BLOCK_SIZE_FIXED = 64 * 1024 
+CACHE_TEST_DIR = DATA_DIR / 'cache_test'
+CACHE_TEST_DIR.mkdir(exist_ok=True)
+
+cache_results = []
+
+for size_mb in FILE_SIZES_MB:
+    file_path = CACHE_TEST_DIR / f'test_{size_mb}mb.bin'
+    print(f"Probando archivo de {size_mb} MB...")
+
+    
+    data = os.urandom(BLOCK_SIZE_FIXED)
+    with open(file_path, 'wb', buffering=0) as f:
+        for _ in range(0, size_mb * 1024 * 1024, BLOCK_SIZE_FIXED):
+            f.write(data)
+
+    for i in range(2):
+        start_r = time.perf_counter()
+        with open(file_path, 'rb', buffering=0) as f:
+            while f.read(BLOCK_SIZE_FIXED):
+                pass
+        elapsed = time.perf_counter() - start_r
+        throughput = size_mb / elapsed
+        
+        cache_results.append({
+            'FileSize_MB': size_mb,
+            'Intento': i + 1,
+            'Throughput_MiB_s': throughput
+        })
+
+df_cache = pd.DataFrame(cache_results)
+
+
+plt.figure(figsize=(10, 6))
+for intento in [1, 2]:
+    subset = df_cache[df_cache['Intento'] == intento]
+    plt.plot(subset['FileSize_MB'], subset['Throughput_MiB_s'], marker='o', label=f'Intento {intento}')
+
+plt.title('Efecto de la Caché: Velocidad vs Tamaño de Archivo')
+plt.xlabel('Tamaño del Archivo (MB)')
+plt.ylabel('Velocidad de Lectura (MiB/s)')
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.show()
+
+print(df_cache)
+
+
+##Código: Comparar caché caliente vs caché fría ejecutando el benchmark dos veces seguidas.
+
+import time
+import pandas as pd
+import matplotlib.pyplot as plt
+
+
+def cache_dual_size_test():
+    tamanos = [50, 200] 
+    block_size = 64 * 1024 
+    resultados = []
+
+    for mb in tamanos:
+        file_path = DATA_DIR / f'cache_test_{mb}mb.bin'
+        
+       
+        if not file_path.exists() or file_path.stat().st_size != (mb * 1024 * 1024):
+            print(f"Generando archivo de {mb}MB...")
+            data = os.urandom(block_size)
+            with open(file_path, 'wb', buffering=0) as f:
+                for _ in range(0, mb * 1024 * 1024, block_size):
+                    f.write(data)
+
+        
+        for intento in ['Fría (Intento 1)', 'Caliente (Intento 2)']:
+            
+            time.sleep(1) 
+            
+            start_time = time.perf_counter()
+            with open(file_path, 'rb', buffering=0) as f:
+                while f.read(block_size):
+                    pass
+            elapsed = time.perf_counter() - start_time
+            throughput = mb / elapsed
+            
+            resultados.append({
+                'Tamaño_MB': mb,
+                'Estado': intento,
+                'Velocidad_MiB_s': throughput
+            })
+            print(f"Archivo {mb}MB - {intento}: {throughput:.2f} MiB/s")
+
+    return pd.DataFrame(resultados)
+
+
+df_cache_dual = cache_dual_size_test()
+
+
+pivot_df = df_cache_dual.pivot(index='Tamaño_MB', columns='Estado', values='Velocidad_MiB_s')
+ax = pivot_df.plot(kind='bar', figsize=(10, 6), color=['#1f77b4', '#ff7f0e'])
+ax.set_title('Comparativa de Caché: 50MB vs 200MB')
+ax.set_ylabel('Throughput (MiB/s)')
+ax.set_xlabel('Tamaño del Archivo (MB)')
+plt.xticks(rotation=0)
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.show()
+
+print("\n--- Tabla de Resultados ---")
+print(df_cache_dual)
